@@ -1,3 +1,4 @@
+// Build Version: 2026-06-12-FreshDeploymentForce
 // 1. Prevent the bot from crashing on minor warnings
 process.on('unhandledRejection', (reason, promise) => {
     console.log('--- Unhandled Rejection Caught ---');
