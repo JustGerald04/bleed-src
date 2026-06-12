@@ -1,4 +1,4 @@
-// 1. Global anti-crash handlers to stop old package warnings from killing the bot process
+// 1. Prevent the bot from crashing on minor warnings
 process.on('unhandledRejection', (reason, promise) => {
     console.log('--- Unhandled Rejection Caught ---');
     console.error(reason);
@@ -9,9 +9,10 @@ process.on('uncaughtException', (err, origin) => {
     console.error(err);
 });
 
-// 2. Original bot setup
+// 2. Setup packages
 const { token, default_prefix, color } = require("./config.json");
 const Discord = require("discord.js");
+const { readdirSync } = require("fs");
 require("@haileybot/sanitize-role-mentions")();
 
 const client = new Discord.Client({
@@ -20,9 +21,8 @@ const client = new Discord.Client({
     partials: ['MESSAGE', 'REACTION']
 });
 
-// 3. Database connection using the environment variable from Railway
+// 3. Connect to Database 
 const mongoose = require('mongoose');
-// Uses process.env.MONGO_URL if available, otherwise falls back to config or a default
 const mongoURI = process.env.MONGO_URL || 'mongodb://localhost:27017/bleed'; 
 
 mongoose.connect(mongoURI, {
@@ -31,7 +31,7 @@ mongoose.connect(mongoURI, {
 }).then(() => console.log('connected to mongoose'))
   .catch(err => console.error('Mongoose connection error:', err));
 
-// 4. Initializing handlers and collections
+// 4. Initialize Collections
 const jointocreate = require("./jointocreate");
 jointocreate(client);
 
@@ -41,17 +41,39 @@ client.db = require("quick.db");
 
 module.exports = client;
 
-// Loops through your handler modules
-["command", "event"].forEach(handler => {
+// 5. Load Commands Directly (Fixes the scandir './commands/' crash)
+const categories = ["fun", "information", "lastfm", "moderation", "owner", "utility"];
+
+categories.forEach(dir => {
     try {
-        require(`./handlers/${handler}`)(client);
+        const commands = readdirSync(`./${dir}/`).filter(file => file.endsWith(".js"));
+
+        for (let file of commands) {
+            let pull = require(`./${dir}/${file}`);
+
+            if (pull.name) {
+                client.commands.set(pull.name, pull);
+                console.log(`Loaded command: ${file} ✅`);
+            }
+
+            if (pull.aliases && Array.isArray(pull.aliases)) {
+                pull.aliases.forEach(alias => client.aliases.set(alias, pull.name));
+            }
+        }
     } catch (err) {
-        console.error(`Error loading handler ${handler}:`, err);
+        console.log(`Directory context skip for: ${dir}`);
     }
 });
 
+// 6. Load Events Handler natively
+try {
+    require("./handlers/event")(client);
+} catch(e) {
+    console.log("Event handler setup info:", e.message);
+}
+
 Discord.Constants.DefaultOptions.ws.properties.$browser = "Discord Android";
 
-// 5. Log in to Discord using your secret token
+// 7. Login
 const botToken = process.env.TOKEN || token;
 client.login(botToken);
