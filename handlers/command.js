@@ -1,4 +1,4 @@
-const { readdirSync } = require("fs");
+const { readdirSync, existsSync } = require("fs");
 
 const ascii = require("ascii-table");
 
@@ -6,12 +6,17 @@ let table = new ascii("Commands");
 table.setHeading("Command", "Load status");
 
 module.exports = (client) => {
-    // We changed "./commands/" to "./" to read the root folders instead
-    // We filter out system folders that aren't command categories
     const categories = ["fun", "information", "lastfm", "moderation", "owner", "utility"];
 
     categories.forEach(dir => {
-        const commands = readdirSync(`./${dir}/`).filter(file => file.endsWith(".js"));
+        const dirPath = `./${dir}/`;
+        
+        // Skip if directory doesn't exist
+        if (!existsSync(dirPath)) {
+            return;
+        }
+
+        const commands = readdirSync(dirPath).filter(file => file.endsWith(".js"));
 
         for (let file of commands) {
             let pull = require(`../${dir}/${file}`);
